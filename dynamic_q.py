@@ -47,7 +47,7 @@ class DynamicQ(nn.Module):
                 Q_star = F.softmax(logits, dim=-1)  # 退化为 softmax
                 print("⚠️ 未安装 entmax 库, 使用 softmax 近似。")
 
-        # (3) 若提供 q_init，则向其靠拢
+        # (3) 若提供 q_init，每次前向计算持续融合专家先验（不是参数初始化）
         if q_init is not None:
             Q_star = 0.9 * Q_star + 0.1 * q_init.to(Q_star.device)
 

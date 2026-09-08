@@ -67,7 +67,7 @@ class Net(nn.Module):
                 sparse_type=sparse_type
             )
             
-            # 专家 Q 矩阵（可选，用于初始化）
+            # 专家 Q 先验（可选，每次前向计算持续融合）
             if q_init is not None:
                 self.register_buffer('q_init', q_init.float())
             else:
@@ -79,7 +79,7 @@ class Net(nn.Module):
             self.dynamic_q = None
             self.q_init = None
 
-        # 注意力机制（仅在非 DynamicQ 模式下使用，或作为后处理）
+        # 知识点注意力（静态与 DynamicQ 模式均使用）
         self.kn_attention = KnowledgeAttention(knowledge_n)
 
         # 前馈神经网络
@@ -120,7 +120,7 @@ class Net(nn.Module):
             # 根据 exer_id 取对应的 Q* 行
             kn_emb = Q_star[exer_id]  # [B, K]
             
-            # 仍然使用注意力机制作为后处理（可选）
+            # 使用知识点注意力后处理；此处不再做行归一化
             kn_emb = self.kn_attention(kn_emb)  # [B, K]
         else:
             # 传统模式：使用静态专家 Q（从 kn_emb 输入）

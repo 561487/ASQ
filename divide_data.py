@@ -53,7 +53,7 @@ def divide_data():
     with open('data/train_set.json', 'w', encoding='utf8') as output_file:
         json.dump(train_set, output_file, indent=4, ensure_ascii=False)
     with open('data/val_set.json', 'w', encoding='utf8') as output_file:
-        json.dump(val_set, output_file, indent=4, ensure_ascii=False)    # 直接用test_set作为val_set
+        json.dump(val_set, output_file, indent=4, ensure_ascii=False)    # 保存独立验证切片
     with open('data/test_set.json', 'w', encoding='utf8') as output_file:
         json.dump(test_set, output_file, indent=4, ensure_ascii=False)
 

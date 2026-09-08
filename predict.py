@@ -24,12 +24,12 @@ def test(epoch=None, use_dynamic_q=False, d_model=128, use_q_init=False, use_bes
         epoch: 模型 epoch 编号（如果 use_best=True，则忽略此参数，使用最佳epoch）
         use_dynamic_q: 是否使用 DynamicQ（必须与训练时一致）
         d_model: DynamicQ 的嵌入维度（必须与训练时一致）
-        use_q_init: 是否使用专家 Q 矩阵初始化（必须与训练时一致）
+        use_q_init: 是否持续融合专家 Q 先验（必须与训练时一致）
         use_best: 是否使用验证集上表现最好的 epoch（默认 False，使用指定的 epoch）
     """
     data_loader = ValTestDataLoader('test')
     
-    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要初始化）
+    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要专家先验）
     q_init = None
     if use_dynamic_q and use_q_init:
         print("Building expert Q matrix from training data...")
@@ -74,7 +74,7 @@ def test(epoch=None, use_dynamic_q=False, d_model=128, use_q_init=False, use_bes
     if use_dynamic_q:
         print(f"✅ Using DynamicQ (sparse Q) with d_model={d_model}")
     else:
-        print("✅ Using static expert Q matrix (original NCDM)")
+        print("✅ Using static Q with the modified NCDM backbone")
 
     correct_count, exer_count = 0, 0
     pred_all, label_all = [], []
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--d_model', type=int, default=128,
                        help='Embedding dimension for DynamicQ (must match training, default: 128)')
     parser.add_argument('--use_q_init', action='store_true',
-                       help='Initialize DynamicQ with expert Q matrix (must match training)')
+                       help='Fuse expert Q prior on every forward pass (must match training)')
     parser.add_argument('--use_best', action='store_true',
                        help='Use best epoch from validation set (recommended)')
     

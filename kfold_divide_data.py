@@ -34,7 +34,7 @@ from typing import List, Dict
     3. 第 k 折：
          - 当前折的所有日志构成 test_set_k
          - 其它折的所有日志合并构成 train_set_k
-         - val_set_k 直接复用 test_set_k（风格与原 divide_data.py 保持一致）
+         - val_set_k 直接复用 test_set_k（存在测试数据参与模型选择的问题，见 EXPERIMENTS.md）
 """
 
 
@@ -149,7 +149,7 @@ def build_kfold_data(
 
         # 将 test_flat 按学生分组，得到 test_set / val_set
         test_grouped = _group_logs_by_student(test_flat)
-        val_grouped = test_grouped  # 与原始脚本风格一致：val = test
+        val_grouped = test_grouped  # 当前验证与测试相同，正式实验前需划分独立验证集
 
         fold_dir = os.path.join(out_root, f"fold{fold_id}")
         os.makedirs(fold_dir, exist_ok=True)

@@ -1,145 +1,76 @@
-# DynamicQ（稀疏 Q）模块使用说明
+# DynamicQ：NCDM 中的可学习 Q 矩阵
 
-## 概述
+本文件以当前代码为准。数据准备与基础命令见 [README](README.md)，实验限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
-本项目已集成 DynamicQ（稀疏 Q）模块，可以用可学习的稀疏 Q 矩阵替换 NCDM 中的静态专家 Q 矩阵。
+## 方法定义
 
-## 功能说明
+研究对象是 Q 矩阵生成方法，NCDM 是下游诊断模型。`DynamicQ` 是代码模块名。输出是非负连续权重矩阵，不是传统二值 Q。它随训练更新，但同一模型状态下同一道题的 Q 行对所有学生相同，不属于学生个性化 Q 或时序 Q。
 
-### 1. 原始 NCDM（静态专家 Q）
-- 使用从数据中提取的静态专家 Q 矩阵
-- Q 矩阵是固定的，不参与训练
+## 计算流程
 
-### 2. NCDM + DynamicQ（动态稀疏 Q）
-- 使用 DynamicQ 模块生成可学习的稀疏 Q 矩阵
-- Q 矩阵通过题目和技能的嵌入向量动态生成
-- 支持使用专家 Q 矩阵进行初始化（可选）
+设题目数 I、知识点数 K、嵌入维度 d。
 
-## 使用方法
+1. `model.py` 定义可学习题目嵌入 E（I × d）和知识点嵌入 C（K × d）。
+2. 分别做带偏置的线性投影，计算 `S = item_proj(E) @ skill_proj(C).T / tau`，其中 `tau=0.7`。
+3. 沿知识点维度映射得到学习 Q。默认使用 entmax15；模块支持 sparsemax，但命令行没有对应参数。未安装 entmax 时默认分支回退为 softmax。
+4. 启用专家先验时计算 `Q_mix = 0.9 * Q_learned + 0.1 * Q_expert`，否则使用学习 Q；随后按行归一化得到 `Q_star`。
+5. 取当前题目行，经 `KnowledgeAttention` 得到 `q_effective = q * softmax(attn_layer(q))`。这一步之后不再归一化，实际参与诊断交互的向量不保证行和为 1。
+6. 构造 `x = e_disc * (stu_emb - k_diff) * q_effective`，经预测网络输出答对概率，使用答题标签的二元交叉熵联合训练。
 
-### 训练模型
+当前无额外 Q 重构损失、专家对齐损失或显式稀疏正则项。稀疏性来自映射，需要实际测量；使用稀疏映射不意味着每行必然出现零值，softmax 回退也不能当作稀疏实验。
 
-#### 1. 原始 NCDM（静态专家 Q）
+## 专家先验不是参数初始化
+
+`build_expert_q_matrix()` 从当前训练集的 `knowledge_code` 合并同题标注并按行归一化。训练中未出现的题目对应全零行。
+
+`--use_q_init` 保留原参数名，准确含义是**每次前向计算持续融合专家 Q 先验**。专家 Q 作为 buffer 随模型保存，不用于初始化题目或知识点嵌入。融合之后还会归一化，全零专家行不能解释为最终固定占比的 10% 专家贡献。
+
+这里“专家 Q”指数据集知识点标注构造的矩阵，代码没有额外专家标注流程。无先验模式仍使用配置中的知识点数量；预测指标本身不能证明学到的各列与原知识点语义对齐。
+
+## 参数与命令
+
+| 参数 | 实际含义 |
+| --- | --- |
+| `device` | 训练设备；预测固定使用 CPU |
+| `epoch` | 训练最大轮数或预测指定检查点轮次 |
+| `--use_dynamic_q` | 启用学习 Q |
+| `--d_model` | 嵌入维度，默认 128 |
+| `--use_q_init` | 动态模式下持续融合专家先验 |
+| `--patience` | 训练命令默认 0，不早停；正数按验证 AUC 早停 |
+| `--use_best` | 预测时加载验证 AUC 最优的检查点 |
+
+先按 README 准备独立数据划分和输出目录，再选择一个配置运行：
+
 ```bash
-python train.py cuda:0 70
+# 当前修改骨干 + 静态 Q
+python train.py cpu 70 --patience 5
+python predict.py --use_best
 ```
 
-#### 2. NCDM + DynamicQ（不使用专家 Q 初始化）
 ```bash
-python train.py cuda:0 70 --use_dynamic_q --d_model 128
+# 当前修改骨干 + 学习 Q
+python train.py cpu 70 --use_dynamic_q --d_model 128 --patience 5
+python predict.py --use_best --use_dynamic_q --d_model 128
 ```
 
-#### 3. NCDM + DynamicQ（使用专家 Q 初始化）
 ```bash
-python train.py cuda:0 70 --use_dynamic_q --d_model 128 --use_q_init
+# 当前修改骨干 + 学习 Q + 专家先验
+python train.py cpu 70 --use_dynamic_q --d_model 128 --use_q_init --patience 5
+python predict.py --use_best --use_dynamic_q --d_model 128 --use_q_init
 ```
 
-**参数说明：**
-- `cuda:0`: 设备（可以是 `cpu` 或 `cuda:0`, `cuda:1` 等）
-- `70`: 训练轮数
-- `--use_dynamic_q`: 启用 DynamicQ 模块
-- `--d_model`: DynamicQ 的嵌入维度（默认：128）
-- `--use_q_init`: 使用专家 Q 矩阵初始化 DynamicQ
+不同配置共用输出路径，切换前需归档检查点与日志。训练和预测的开关、嵌入维度、映射实现和依赖环境应一致。检查点仅保存 `state_dict`，不会自动恢复全部实验设置。
 
-### 测试模型
+## 诊断骨干与实现边界
 
-#### 1. 原始 NCDM
-```bash
-python predict.py 70
-```
+静态和动态模式共用知识点注意力、512/256 隐藏层、LayerNorm、GELU、Dropout（0.5）及可学习 sigmoid 温度，均对预测全连接层权重进行非负裁剪。因此静态模式不能称为严格的原版 NCDM 复现。
 
-#### 2. NCDM + DynamicQ（不使用专家 Q 初始化）
-```bash
-python predict.py 70 --use_dynamic_q --d_model 128
-```
+LayerNorm、GELU 和没有正值约束的输出温度意味着，不能仅凭非负裁剪就声称保留了原版 NCDM 的严格单调性保证。
 
-#### 3. NCDM + DynamicQ（使用专家 Q 初始化）
-```bash
-python predict.py 70 --use_dynamic_q --d_model 128 --use_q_init
-```
+每次前向计算完整 I × K 的 Q 矩阵后再取批次题目行，大规模实验需关注计算和显存开销。
 
-**重要提示：**
-- 测试时的参数（`--use_dynamic_q`, `--d_model`, `--use_q_init`）必须与训练时完全一致！
-- `epoch` 参数指定要加载的模型 epoch 编号
+## 输出与结论
 
-## 实验对比
+模型保存在 `model/model_epoch{N}`、`model/best_model.pt`，最佳轮次记录于 `model/best_epoch.txt`。指标追加到 `result/model_val.txt` 和 `result/model_test.txt`，日志不记录模式、种子或折号。
 
-为了验证 DynamicQ 的效果，建议进行以下对比实验：
-
-### 实验 1：原始 NCDM vs NCDM + DynamicQ（无初始化）
-```bash
-# 基线：原始 NCDM
-python train.py cuda:0 70
-
-# 实验：NCDM + DynamicQ
-python train.py cuda:0 70 --use_dynamic_q --d_model 128
-```
-
-### 实验 2：原始 NCDM vs NCDM + DynamicQ（有初始化）
-```bash
-# 基线：原始 NCDM
-python train.py cuda:0 70
-
-# 实验：NCDM + DynamicQ（使用专家 Q 初始化）
-python train.py cuda:0 70 --use_dynamic_q --d_model 128 --use_q_init
-```
-
-### 评估结果
-训练完成后，查看 `result/model_val.txt` 和 `result/model_test.txt` 文件，对比以下指标：
-- **AUC**: 曲线下面积（越高越好）
-- **RMSE**: 均方根误差（越低越好）
-- **Accuracy**: 准确率（越高越好）
-
-## 技术细节
-
-### DynamicQ 模块
-- **稀疏注意力机制**: 使用 `entmax15` 或 `sparsemax` 生成稀疏 Q 矩阵
-- **可学习参数**: 
-  - `item_embed`: 题目嵌入向量 `[exer_n, d_model]`
-  - `skill_embed`: 技能嵌入向量 `[knowledge_n, d_model]`
-  - `item_proj` 和 `skill_proj`: 线性投影层
-
-### 专家 Q 矩阵构建
-- 从训练数据 `data/train_set.json` 中提取
-- 每个题目对应的知识点被标记为 1，其他为 0
-- 行归一化后作为初始化（如果使用 `--use_q_init`）
-
-### 模型架构变化
-- **原始模式**: `kn_emb` 直接从数据加载器输入（静态专家 Q）
-- **DynamicQ 模式**: `kn_emb` 由 DynamicQ 模块动态生成（可学习稀疏 Q）
-
-## 注意事项
-
-1. **参数一致性**: 训练和测试时的 DynamicQ 相关参数必须完全一致
-2. **模型保存**: 模型保存在 `model/model_epoch{N}`，确保训练和测试使用相同的 epoch
-3. **依赖库**: 如果安装了 `entmax` 库，DynamicQ 会使用 `entmax15`；否则会退化为 `softmax`
-4. **内存占用**: DynamicQ 模式会增加模型参数量（主要是 `item_embed` 和 `skill_embed`）
-
-## 文件说明
-
-- `dynamic_q.py`: DynamicQ 模块实现
-- `build_q_matrix.py`: 从数据构建专家 Q 矩阵的工具函数
-- `model.py`: 修改后的 NCDM 模型（支持 DynamicQ）
-- `train.py`: 修改后的训练脚本（支持 DynamicQ）
-- `predict.py`: 修改后的预测脚本（支持 DynamicQ）
-
-## 示例输出
-
-训练时会显示：
-```
-✅ Using DynamicQ (sparse Q) with d_model=128
-✅ Using expert Q matrix for initialization
-Building expert Q matrix from training data...
-Expert Q matrix shape: torch.Size([17746, 123])
-training model...
-```
-
-测试时会显示：
-```
-✅ Using DynamicQ (sparse Q) with d_model=128
-testing model...
-epoch= 70, accuracy= 0.7234, rmse= 0.3456, auc= 0.7890
-```
-
-
-
+当前仓库没有已记录的有效性能结果，本说明不提供示例指标。Q 的结构质量、稀疏度和解释性需要对应的额外验证，不能仅由预测效果推断。

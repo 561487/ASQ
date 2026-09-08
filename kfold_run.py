@@ -12,13 +12,13 @@ from typing import List, Tuple
     - 使用现有的 train.py 和 predict.py 进行训练与测试
 
 用法示例：
-    # 原始 NCDM 五折
+    # 当前修改骨干 + 静态 Q 五折
     python kfold_run.py cuda:0 5
 
     # DynamicQ 五折
     python kfold_run.py cuda:0 5 --use_dynamic_q --d_model 128
 
-    # DynamicQ + 专家 Q 初始化 五折
+    # DynamicQ + 专家 Q 先验融合 五折
     python kfold_run.py cuda:0 5 --use_dynamic_q --d_model 128 --use_q_init
 
 说明：
@@ -151,7 +151,7 @@ def main():
     parser.add_argument(
         "--use_q_init",
         action="store_true",
-        help="Initialize DynamicQ with expert Q matrix",
+        help="Fuse expert Q prior on every forward pass",
     )
     parser.add_argument(
         "--patience",

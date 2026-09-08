@@ -25,12 +25,12 @@ def train(use_dynamic_q=False, d_model=128, use_q_init=False, patience=5):
     参数:
         use_dynamic_q: 是否使用 DynamicQ（稀疏 Q）替换静态专家 Q
         d_model: DynamicQ 的嵌入维度
-        use_q_init: 是否使用专家 Q 矩阵初始化 DynamicQ
+        use_q_init: 是否持续融合专家 Q 先验 DynamicQ
         patience: Early stopping 的耐心值，连续多少个 epoch 没有提升就停止（默认5，设为0或负数表示不早停）
     """
     data_loader = TrainDataLoader()
     
-    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要初始化）
+    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要专家先验）
     q_init = None
     if use_dynamic_q and use_q_init:
         print("Building expert Q matrix from training data...")
@@ -51,9 +51,9 @@ def train(use_dynamic_q=False, d_model=128, use_q_init=False, patience=5):
     if use_dynamic_q:
         print(f"✅ Using DynamicQ (sparse Q) with d_model={d_model}")
         if use_q_init:
-            print("✅ Using expert Q matrix for initialization")
+            print("✅ Using persistent expert Q prior fusion")
     else:
-        print("✅ Using static expert Q matrix (original NCDM)")
+        print("✅ Using static Q with the modified NCDM backbone")
 
     optimizer = optim.Adam(net.parameters(), lr=0.002)
     loss_function = nn.BCELoss()
@@ -133,11 +133,11 @@ def validate(model, epoch, use_dynamic_q=False, d_model=128, use_q_init=False):
         epoch: 当前 epoch
         use_dynamic_q: 是否使用 DynamicQ（必须与训练时一致）
         d_model: DynamicQ 的嵌入维度（必须与训练时一致）
-        use_q_init: 是否使用专家 Q 矩阵初始化（必须与训练时一致）
+        use_q_init: 是否持续融合专家 Q 先验（必须与训练时一致）
     """
     data_loader = ValTestDataLoader('validation')
     
-    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要初始化）
+    # 构建专家 Q 矩阵（如果使用 DynamicQ 且需要专家先验）
     q_init = None
     if use_dynamic_q and use_q_init:
         q_init = build_expert_q_matrix('data/train_set.json', exer_n, knowledge_n)
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--d_model', type=int, default=128,
                        help='Embedding dimension for DynamicQ (default: 128)')
     parser.add_argument('--use_q_init', action='store_true',
-                       help='Initialize DynamicQ with expert Q matrix')
+                       help='Fuse expert Q prior into DynamicQ on every forward pass')
     parser.add_argument('--patience', type=int, default=0,
                        help='Early stopping patience (default: 0 = no early stopping)')
     

@@ -16,7 +16,7 @@ def build_expert_q_matrix(data_file: str, exer_n: int, knowledge_n: int) -> torc
         knowledge_n: 知识点数量
     
     返回:
-        Q_matrix: torch.Tensor, shape [exer_n, knowledge_n]，值为 0/1
+        Q_matrix: torch.Tensor, shape [exer_n, knowledge_n]，非负行归一化权重；无标注题目为全零行
     """
     Q_matrix = np.zeros((exer_n, knowledge_n), dtype=np.float32)
     
@@ -31,7 +31,7 @@ def build_expert_q_matrix(data_file: str, exer_n: int, knowledge_n: int) -> torc
             if 0 <= exer_id < exer_n and 0 <= knowledge_idx < knowledge_n:
                 Q_matrix[exer_id, knowledge_idx] = 1.0
     
-    # 行归一化（保证每题技能权重和为1）
+    # 行归一化（有标注题目的权重和为1，无标注行保持全零）
     row_sums = Q_matrix.sum(axis=1, keepdims=True)
     row_sums[row_sums == 0] = 1.0  # 避免除零
     Q_matrix = Q_matrix / row_sums
