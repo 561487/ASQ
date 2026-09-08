@@ -1,6 +1,6 @@
-# DynamicQ：NCDM 中的可学习 Q 矩阵
+# ASQ 方法说明与 DynamicQ 实现
 
-本文件以当前代码为准。数据准备与基础命令见 [README](README.md)，实验限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
+ASQ 全称为 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**。本文件区分论文主方法与当前 `DynamicQ` 实现，逐项对应见 [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md)。数据准备与基础命令见 [README](README.md)，实验限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 ## 方法定义
 
@@ -11,19 +11,19 @@
 设题目数 I、知识点数 K、嵌入维度 d。
 
 1. `model.py` 定义可学习题目嵌入 E（I × d）和知识点嵌入 C（K × d）。
-2. 分别做带偏置的线性投影，计算 `S = item_proj(E) @ skill_proj(C).T / tau`，其中 `tau=0.7`。
+2. 分别做带偏置的线性投影，计算 `S = item_proj(E) @ skill_proj(C).T / tau`，论文最终取 `tau=1`；当前代码默认固定为 `0.7`，命令行尚不可调。
 3. 沿知识点维度映射得到学习 Q。默认使用 entmax15；模块支持 sparsemax，但命令行没有对应参数。未安装 entmax 时默认分支回退为 softmax。
-4. 启用专家先验时计算 `Q_mix = 0.9 * Q_learned + 0.1 * Q_expert`，否则使用学习 Q；随后按行归一化得到 `Q_star`。
+4. 论文主方法直接对学习 Q 数值归一化，不融合专家 Q。代码额外支持启用专家先验时计算 `Q_mix = 0.9 * Q_learned + 0.1 * Q_expert`，否则使用学习 Q；随后按行归一化得到 `Q_star`。
 5. 取当前题目行，经 `KnowledgeAttention` 得到 `q_effective = q * softmax(attn_layer(q))`。这一步之后不再归一化，实际参与诊断交互的向量不保证行和为 1。
 6. 构造 `x = e_disc * (stu_emb - k_diff) * q_effective`，经预测网络输出答对概率，使用答题标签的二元交叉熵联合训练。
 
 当前无额外 Q 重构损失、专家对齐损失或显式稀疏正则项。稀疏性来自映射，需要实际测量；使用稀疏映射不意味着每行必然出现零值，softmax 回退也不能当作稀疏实验。
 
-## 专家先验不是参数初始化
+## 论文主方法之外的专家先验扩展
 
 `build_expert_q_matrix()` 从当前训练集的 `knowledge_code` 合并同题标注并按行归一化。训练中未出现的题目对应全零行。
 
-`--use_q_init` 保留原参数名，准确含义是**每次前向计算持续融合专家 Q 先验**。专家 Q 作为 buffer 随模型保存，不用于初始化题目或知识点嵌入。融合之后还会归一化，全零专家行不能解释为最终固定占比的 10% 专家贡献。
+论文第 3 节未包含专家先验融合，ASQ 主方法应不启用此开关。`--use_q_init` 保留原参数名，准确含义是**每次前向计算持续融合专家 Q 先验**。专家 Q 作为 buffer 随模型保存，不用于初始化题目或知识点嵌入。融合之后还会归一化，全零专家行不能解释为最终固定占比的 10% 专家贡献。
 
 这里“专家 Q”指数据集知识点标注构造的矩阵，代码没有额外专家标注流程。无先验模式仍使用配置中的知识点数量；预测指标本身不能证明学到的各列与原知识点语义对齐。
 
@@ -39,7 +39,7 @@
 | `--patience` | 训练命令默认 0，不早停；正数按验证 AUC 早停 |
 | `--use_best` | 预测时加载验证 AUC 最优的检查点 |
 
-先按 README 准备独立数据划分和输出目录，再选择一个配置运行：
+以下是当前实现的接口示例，尚非论文完整复现：τ 仍为 0.7，数据和评估协议差异见论文对应说明。先按 README 准备独立数据划分和输出目录，再选择一个配置运行：
 
 ```bash
 # 当前修改骨干 + 静态 Q
@@ -54,7 +54,7 @@ python predict.py --use_best --use_dynamic_q --d_model 128
 ```
 
 ```bash
-# 当前修改骨干 + 学习 Q + 专家先验
+# 额外扩展，非论文 ASQ 主方法：当前修改骨干 + 学习 Q + 专家先验
 python train.py cpu 70 --use_dynamic_q --d_model 128 --use_q_init --patience 5
 python predict.py --use_best --use_dynamic_q --d_model 128 --use_q_init
 ```
@@ -73,4 +73,10 @@ LayerNorm、GELU 和没有正值约束的输出温度意味着，不能仅凭非
 
 模型保存在 `model/model_epoch{N}`、`model/best_model.pt`，最佳轮次记录于 `model/best_epoch.txt`。指标追加到 `result/model_val.txt` 和 `result/model_test.txt`，日志不记录模式、种子或折号。
 
-当前仓库没有已记录的有效性能结果，本说明不提供示例指标。Q 的结构质量、稀疏度和解释性需要对应的额外验证，不能仅由预测效果推断。
+论文已提供结果表，见 [实验说明](EXPERIMENTS.md)；当前仓库没有对应的运行日志和检查点，尚不能核验这些论文报告值。Q 的结构质量、稀疏度和解释性需要对应的额外验证，不能仅由预测效果推断。
+
+## 论文 Q 结构统计口径
+
+论文 RQ3 统计归一化 Q 中严格大于 `1/K` 的权重数量：`A_j = sum_l 1[Q_hat[j,l] > 1/K]`，再对全部 M 道试题求均值。Expert Q 按二值矩阵使用相同阈值。ASQ 应统计知识点注意力处理前的归一化输出（代码 `Q_star` 对应论文 `Q_hat`），不使用注意力处理后的 `q_effective`。
+
+该指标是高于均匀权重的有效关联数，不等于精确非零数或零值比例。代码尚未提供 Q 导出和这项统计的专用脚本。论文 Continuous Q 的具体非负化/归一化映射未在提供的稿件中明确，不能直接把缺少 entmax 时的 softmax 回退认定为该消融实现。

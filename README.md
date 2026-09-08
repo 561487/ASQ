@@ -1,6 +1,10 @@
-# ASQ：面向 NCDM 的可学习 Q 矩阵生成方法
+# Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis
 
-本项目研究可学习的题目—知识点 Q 矩阵生成方法，并将其应用于神经认知诊断模型 NCDM（NeuralCDM）。核心模块在代码中命名为 `DynamicQ`：从题目与知识点嵌入计算关联权重，生成连续 Q 矩阵，通过答题预测任务联合学习。
+**ASQ：面向认知诊断的自适应稀疏 Q 矩阵学习**
+
+本项目对应论文 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**，当前仓库主要提供 ASQ 在 NCDM（NeuralCDM）中的接入代码。ASQ 通过试题与知识点的低维嵌入和线性投影计算连续关联，再经 Entmax₁.₅ 与数值归一化生成自适应稀疏 Q 矩阵，与下游作答预测任务端到端联合优化。代码中的 `DynamicQ` 是 ASQ 核心模块的现有类名。
+
+论文覆盖 ASSIST09、ASSIST17、Junyi 三个数据集及 NCDM、RCD、CDMFKC、KaNCD 四种下游模型；当前仓库仅包含 NCDM 接入及一份 ASSIST09 来源数据，不代表完整论文实验已发布。论文设置与代码差异见 [论文对应说明](PAPER_ALIGNMENT.md)。
 
 本仓库基于 NeuralCD/NCDM 相关代码开展修改。当前诊断骨干还包含注意力、LayerNorm、GELU 等调整；关闭 DynamicQ 得到的是当前修改骨干的静态 Q 模式，不能直接称为原版 NCDM。基础工作引用见文末。
 
@@ -11,24 +15,24 @@
           ↓
 线性投影与相似度计算
           ↓
-稀疏映射 → 学习 Q
+Entmax₁.₅ → 稀疏 Q
           ↓
-可选融合专家 Q 先验，再按行归一化
+数值归一化 → 自适应 Q
           ↓
 按题目取行 → 知识点注意力加权
           ↓
 NCDM 诊断交互与预测网络 → 答对概率
 ```
 
-Q 随训练更新，同一模型状态下不因学生而改变。它是连续权重而非二值矩阵。`--use_q_init` 的实际作用是每次前向计算持续融合专家 Q，并非初始化嵌入参数。完整细节见 [DYNAMICQ_USAGE.md](DYNAMICQ_USAGE.md)。
+论文方法由连续值 Q 计算和稀疏 Q 生成两部分组成，以二元交叉熵联合训练；Q 随训练更新，同一模型状态下所有学生共享同一矩阵。论文最终设置 τ=1，而当前代码默认固定为 0.7，尚无命令行调节入口。`--use_q_init` 是论文主方法之外的专家先验融合扩展，不应在复现 ASQ 主方法时启用。完整细节见 [DYNAMICQ_USAGE.md](DYNAMICQ_USAGE.md)。
 
 ## 已实现模式
 
 | 模式 | 开关 | Q 来源 |
 | --- | --- | --- |
 | 当前修改骨干 + 静态 Q | 不传动态开关 | 数据中知识点标注构造的多热向量 |
-| 当前修改骨干 + 学习 Q | `--use_dynamic_q` | 题目与知识点嵌入生成 |
-| 当前修改骨干 + 学习 Q + 专家先验 | `--use_dynamic_q --use_q_init` | 学习 Q 与训练标注构造的专家 Q 融合 |
+| 当前修改骨干 + ASQ 核心模块 | `--use_dynamic_q` | 题目与知识点嵌入生成 |
+| 额外扩展：ASQ 核心模块 + 专家先验 | `--use_dynamic_q --use_q_init` | 学习 Q 与训练标注构造的专家 Q 融合 |
 
 三种模式共用当前诊断骨干；仓库尚未提供独立的原版 NCDM 基线实现。实验设计与限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
@@ -59,7 +63,7 @@ python divide_data.py
 python -c "from pathlib import Path; Path('model').mkdir(exist_ok=True); Path('result').mkdir(exist_ok=True)"
 ```
 
-训练学习 Q 模式，并使用验证 AUC 最优的检查点评估：
+以下是当前代码的 NCDM + ASQ 核心模块运行示例（τ 仍为代码默认 0.7，不是论文 τ=1 的完整复现），使用验证 AUC 最优的检查点评估：
 
 ```bash
 python train.py cpu 70 --use_dynamic_q --d_model 128 --patience 5
@@ -76,7 +80,7 @@ python predict.py --use_best --use_dynamic_q --d_model 128
 - 检查点为 `model/model_epoch{N}`、`model/best_model.pt` 和 `model/best_epoch.txt`。
 - AUC、RMSE、Accuracy 分别追加到 `result/model_val.txt` 和 `result/model_test.txt`。
 
-不同配置会覆盖相同检查点并共用日志，切换实验前应归档结果与配置。当前仓库提交的两个指标文件为空，尚无可据此报告的性能提升或五折均值。
+不同配置会覆盖相同检查点并共用日志，切换实验前应归档结果与配置。当前仓库提交的两个指标文件为空，无法用这些日志核验论文结果。论文表 5-1 中的 NCDM 结果已按稿件整理到 [实验说明](EXPERIMENTS.md)，明确标为论文报告值，而非本仓库重跑结果。
 
 五折脚本目前复用测试集作为验证集，再按验证 AUC 选择模型，存在测试数据参与模型选择的问题。修正为独立验证集之前，不应将其输出作为论文的独立测试结果，详见 [实验说明](EXPERIMENTS.md)。
 
@@ -93,7 +97,8 @@ python predict.py --use_best --use_dynamic_q --d_model 128
 | `kfold_divide_data.py` / `kfold_run.py` | 存在验证/测试复用问题的五折流程 |
 | `analyze_kfold_results.py` | 汇总全部匹配日志行，不自动区分配置或折 |
 | [DYNAMICQ_USAGE.md](DYNAMICQ_USAGE.md) | 算法细节和参数 |
-| [EXPERIMENTS.md](EXPERIMENTS.md) | 实验对照与报告要求 |
+| [EXPERIMENTS.md](EXPERIMENTS.md) | 论文 RQ1–RQ4、NCDM 报告结果与复现状态 |
+| [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md) | 论文公式、设置与代码逐项对应 |
 | [认知诊断模型演化总结.md](认知诊断模型演化总结.md) | 项目定位与论文表述边界 |
 
 ## 基础工作与引用
