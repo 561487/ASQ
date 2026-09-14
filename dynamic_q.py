@@ -17,7 +17,7 @@ def sparsemax(logits: torch.Tensor, dim: int = -1, eps: float = 1e-9) -> torch.T
 
 class DynamicQ(nn.Module):
     def __init__(self, d_model: int = 128, num_skills: int = 50,
-                 sparse_type: str = "entmax15", tau: float = 0.7):
+                 sparse_type: str = "entmax15", tau: float = 1.0):
         super().__init__()
         self.d_model = d_model
         self.num_skills = num_skills
