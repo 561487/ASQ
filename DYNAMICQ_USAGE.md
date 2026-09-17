@@ -10,7 +10,7 @@ ASQ 全称为 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**。�
 
 ## 方法定义
 
-研究对象是 Q 矩阵生成方法，NCDM 是下游诊断模型。`DynamicQ` 是代码模块名。输出是非负连续权重矩阵，不是传统二值 Q。它随训练更新，但同一模型状态下同一道题的 Q 行对所有学生相同，不属于学生个性化 Q 或时序 Q。
+本文档说明论文使用的静态 Q 对照与 ASQ 方法。研究对象是 Q 矩阵生成方法，NCDM 是下游诊断模型。`DynamicQ` 是代码模块名。输出是非负连续权重矩阵，不是传统二值 Q。它随训练更新，但同一模型状态下同一道题的 Q 行对所有学生相同，不属于学生个性化 Q 或时序 Q。
 
 ## 计算流程
 
@@ -19,19 +19,11 @@ ASQ 全称为 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**。�
 1. `model.py` 定义可学习题目嵌入 E（I × d）和知识点嵌入 C（K × d）。
 2. 分别做带偏置的线性投影，计算 `S = item_proj(E) @ skill_proj(C).T / tau`，论文最终取 `tau=1`；当前代码默认固定为 `0.7`，命令行尚不可调。
 3. 沿知识点维度映射得到学习 Q。默认使用 entmax15；模块支持 sparsemax，但命令行没有对应参数。未安装 entmax 时默认分支回退为 softmax。
-4. 论文主方法直接对学习 Q 数值归一化，不融合专家 Q。代码额外支持启用专家先验时计算 `Q_mix = 0.9 * Q_learned + 0.1 * Q_expert`，否则使用学习 Q；随后按行归一化得到 `Q_star`。
+4. 对稀疏映射输出沿知识点维度进行数值归一化，得到自适应 Q 矩阵 `Q_star`。
 5. 取当前题目行，经 `KnowledgeAttention` 得到 `q_effective = q * softmax(attn_layer(q))`。这一步之后不再归一化，实际参与诊断交互的向量不保证行和为 1。
 6. 构造 `x = e_disc * (stu_emb - k_diff) * q_effective`，经预测网络输出答对概率，使用答题标签的二元交叉熵联合训练。
 
 当前无额外 Q 重构损失、专家对齐损失或显式稀疏正则项。稀疏性来自映射，需要实际测量；使用稀疏映射不意味着每行必然出现零值，softmax 回退也不能当作稀疏实验。
-
-## 论文主方法之外的专家先验扩展
-
-`build_expert_q_matrix()` 从当前训练集的 `knowledge_code` 合并同题标注并按行归一化。训练中未出现的题目对应全零行。
-
-论文第 3 节未包含专家先验融合，ASQ 主方法应不启用此开关。`--use_q_init` 保留原参数名，准确含义是**每次前向计算持续融合专家 Q 先验**。专家 Q 作为 buffer 随模型保存，不用于初始化题目或知识点嵌入。融合之后还会归一化，全零专家行不能解释为最终固定占比的 10% 专家贡献。
-
-这里“专家 Q”指数据集知识点标注构造的矩阵，代码没有额外专家标注流程。无先验模式仍使用配置中的知识点数量；预测指标本身不能证明学到的各列与原知识点语义对齐。
 
 ## 参数与命令
 
@@ -41,7 +33,6 @@ ASQ 全称为 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**。�
 | `epoch` | 训练最大轮数或预测指定检查点轮次 |
 | `--use_dynamic_q` | 启用学习 Q |
 | `--d_model` | 嵌入维度，默认 128 |
-| `--use_q_init` | 动态模式下持续融合专家先验 |
 | `--patience` | 训练命令默认 0，不早停；正数按验证 AUC 早停 |
 | `--use_best` | 预测时加载验证 AUC 最优的检查点 |
 
@@ -57,12 +48,6 @@ python predict.py --use_best
 # 当前修改骨干 + 学习 Q
 python train.py cpu 70 --use_dynamic_q --d_model 128 --patience 5
 python predict.py --use_best --use_dynamic_q --d_model 128
-```
-
-```bash
-# 额外扩展，非论文 ASQ 主方法：当前修改骨干 + 学习 Q + 专家先验
-python train.py cpu 70 --use_dynamic_q --d_model 128 --use_q_init --patience 5
-python predict.py --use_best --use_dynamic_q --d_model 128 --use_q_init
 ```
 
 不同配置共用输出路径，切换前需归档检查点与日志。训练和预测的开关、嵌入维度、映射实现和依赖环境应一致。检查点仅保存 `state_dict`，不会自动恢复全部实验设置。

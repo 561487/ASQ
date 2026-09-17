@@ -28,7 +28,7 @@ Entmax₁.₅ → 稀疏 Q
 NCDM 诊断交互与预测网络 → 答对概率
 ```
 
-论文方法由连续值 Q 计算和稀疏 Q 生成两部分组成，以二元交叉熵联合训练；Q 随训练更新，同一模型状态下所有学生共享同一矩阵。论文最终设置 τ=1，而当前代码默认固定为 0.7，尚无命令行调节入口。`--use_q_init` 是论文主方法之外的专家先验融合扩展，不应在复现 ASQ 主方法时启用。完整细节见 [DYNAMICQ_USAGE.md](DYNAMICQ_USAGE.md)。
+论文方法由连续值 Q 计算和稀疏 Q 生成两部分组成，以二元交叉熵联合训练；Q 随训练更新，同一模型状态下所有学生共享同一矩阵。论文最终设置 τ=1，而当前代码默认固定为 0.7，尚无命令行调节入口。完整细节见 [DYNAMICQ_USAGE.md](DYNAMICQ_USAGE.md)。
 
 ## 已实现模式
 
@@ -36,9 +36,8 @@ NCDM 诊断交互与预测网络 → 答对概率
 | --- | --- | --- |
 | 当前修改骨干 + 静态 Q | 不传动态开关 | 数据中知识点标注构造的多热向量 |
 | 当前修改骨干 + ASQ 核心模块 | `--use_dynamic_q` | 题目与知识点嵌入生成 |
-| 额外扩展：ASQ 核心模块 + 专家先验 | `--use_dynamic_q --use_q_init` | 学习 Q 与训练标注构造的专家 Q 融合 |
 
-三种模式共用当前诊断骨干；仓库尚未提供独立的原版 NCDM 基线实现。实验设计与限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
+两种模式共用当前诊断骨干；仓库尚未提供独立的原版 NCDM 基线实现。实验设计与限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 ## 环境
 
@@ -74,7 +73,7 @@ python train.py cpu 70 --use_dynamic_q --d_model 128 --patience 5
 python predict.py --use_best --use_dynamic_q --d_model 128
 ```
 
-训练设备可改成 `cuda:0`，预测当前在 CPU 上执行。两条命令同时去掉 `--use_dynamic_q --d_model 128` 即为静态模式；同时加上 `--use_q_init` 即为专家先验融合模式。
+训练设备可改成 `cuda:0`，预测当前在 CPU 上执行。两条命令同时去掉 `--use_dynamic_q --d_model 128` 即为静态模式。
 
 训练命令默认不早停（`--patience 0`）；正数启用基于验证 AUC 的早停。也可用 `python predict.py 70` 加上匹配的模式参数加载指定轮次，但该检查点必须存在。训练与测试配置需一致。
 
@@ -92,7 +91,7 @@ python predict.py --use_best --use_dynamic_q --d_model 128
 
 | 文件 | 作用 |
 | --- | --- |
-| `dynamic_q.py` | 学习 Q 生成、稀疏映射、专家先验融合 |
+| `dynamic_q.py` | 学习 Q 生成、稀疏映射与归一化 |
 | `build_q_matrix.py` | 从训练标注构造并归一化专家 Q |
 | `model.py` | 支持静态/学习 Q 的当前 NCDM 骨干 |
 | `data_loader.py` | 数据加载 |
