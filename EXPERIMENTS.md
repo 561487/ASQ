@@ -1,5 +1,11 @@
 # ASQ 论文实验与当前复现范围
 
+**Paper**: Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis
+
+**Authors**: Jinwei Wang, Guangwei Liu
+
+*Under review at Neurocomputing, 2026.*
+
 依据作者提供的 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis** 稿件整理。下列数值是论文报告值，不是本次运行所得；仓库的验证与测试日志目前为空，缺少可用于核验这些数值的实验记录。方法和实现差异见 [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md)。
 
 ## 论文实验设计

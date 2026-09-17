@@ -1,5 +1,11 @@
 # 论文与当前仓库的对应关系
 
+**Paper**: Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis
+
+**Authors**: Jinwei Wang, Guangwei Liu
+
+*Under review at Neurocomputing, 2026.*
+
 本文依据作者提供的论文稿件 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis** 整理。论文方法简称 **ASQ（自适应稀疏 Q 矩阵学习）**；`DynamicQ` 是当前代码类名。文中的论文结果属于稿件报告，不代表本次已重跑或独立核验。
 
 ## 方法公式与代码

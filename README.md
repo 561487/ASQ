@@ -1,5 +1,9 @@
 # Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis
 
+**Authors**: Jinwei Wang, Guangwei Liu
+
+*Under review at Neurocomputing, 2026.*
+
 **ASQ：面向认知诊断的自适应稀疏 Q 矩阵学习**
 
 本项目对应论文 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**，当前仓库主要提供 ASQ 在 NCDM（NeuralCDM）中的接入代码。ASQ 通过试题与知识点的低维嵌入和线性投影计算连续关联，再经 Entmax₁.₅ 与数值归一化生成自适应稀疏 Q 矩阵，与下游作答预测任务端到端联合优化。代码中的 `DynamicQ` 是 ASQ 核心模块的现有类名。

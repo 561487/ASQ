@@ -1,5 +1,11 @@
 # ASQ 方法说明与 DynamicQ 实现
 
+**Paper**: Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis
+
+**Authors**: Jinwei Wang, Guangwei Liu
+
+*Under review at Neurocomputing, 2026.*
+
 ASQ 全称为 **Adaptive Sparse Q-Matrix Learning for Cognitive Diagnosis**。本文件区分论文主方法与当前 `DynamicQ` 实现，逐项对应见 [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md)。数据准备与基础命令见 [README](README.md)，实验限制见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 ## 方法定义
