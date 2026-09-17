@@ -10,7 +10,7 @@
 
 论文覆盖 ASSIST09、ASSIST17、Junyi 三个数据集及 NCDM、RCD、CDMFKC、KaNCD 四种下游模型；当前仓库仅包含 NCDM 接入及一份 ASSIST09 来源数据，不代表完整论文实验已发布。论文设置与代码差异见 [论文对应说明](PAPER_ALIGNMENT.md)。
 
-本仓库基于 NeuralCD/NCDM 相关代码开展修改。当前诊断骨干还包含注意力、LayerNorm、GELU 等调整；关闭 DynamicQ 得到的是当前修改骨干的静态 Q 模式，不能直接称为原版 NCDM。基础工作引用见文末。
+本仓库基于 NeuralCD/NCDM 相关代码开展修改。当前诊断骨干还包含注意力、LayerNorm、GELU 等调整；关闭 DynamicQ 得到的是当前修改骨干的静态 Q 模式，不能直接称为原版 NCDM。
 
 ## 方法概览
 
@@ -104,28 +104,3 @@ python predict.py --use_best --use_dynamic_q --d_model 128
 | [EXPERIMENTS.md](EXPERIMENTS.md) | 论文 RQ1–RQ4、NCDM 报告结果与复现状态 |
 | [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md) | 论文公式、设置与代码逐项对应 |
 | [认知诊断模型演化总结.md](认知诊断模型演化总结.md) | 项目定位与论文表述边界 |
-
-## 基础工作与引用
-
-以下引用属于基础模型论文，不代表本项目新增 Q 方法发表于这些论文。上游的 AAAI 公式勘误图片保留在 [equation.JPG](equation.JPG)，不作为本项目 Q 方法公式。
-
-```
-@article{wang2020neural,
-  title={Neural Cognitive Diagnosis for Intelligent Education Systems},
-  author={Wang, Fei and Liu, Qi and Chen, Enhong and Huang, Zhenya and Chen, Yuying and Yin, Yu and Huang, Zai and Wang, Shijin},
-  booktitle={Thirty-Fourth AAAI Conference on Artificial Intelligence},
-  year={2020}
-}
-```
-
-or
-
-```
-@article{wang2022neuralcd,
-  title={NeuralCD: A General Framework for Cognitive Diagnosis},
-  author={Wang, Fei and Liu, Qi and Chen, Enhong and Huang, Zhenya and Yin, Yu and Wang, Shijin and Su, Yu},
-  journal={IEEE Transactions on Knowledge and Data Engineering},
-  year={2022},
-  publisher={IEEE}
-}
-```
